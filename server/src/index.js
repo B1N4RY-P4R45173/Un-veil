@@ -5,6 +5,7 @@ import { attachSockets } from './socket.js';
 import { query } from './db.js';
 import { clearQueue } from './services/matchmaking.js';
 import { loadModel, score } from './services/toxicity.js';
+import { scheduleRetention } from './services/retention.js';
 
 // Moderation cannot run without the model, so load and warm it up before accepting chats.
 try {
@@ -23,6 +24,7 @@ attachSockets(server);
 // Chats and queue tickets left over from a crash or restart are cleared on boot.
 await query("UPDATE chat_sessions SET ended_at = now(), end_reason = 'server restart' WHERE ended_at IS NULL");
 await clearQueue();
+scheduleRetention();
 
 server.listen(config.port, () => {
   console.log(`Unveil server listening on http://localhost:${config.port}`);

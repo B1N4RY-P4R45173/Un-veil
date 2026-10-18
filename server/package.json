@@ -34,5 +34,11 @@
   "devDependencies": {
     "socket.io-client": "^4.8.4",
     "supertest": "^7.3.1"
+  },
+  "overrides": {
+    "tar": "^7.5.22",
+    "adm-zip": "^0.6.1",
+    "@mapbox/node-pre-gyp": "^2.0.3",
+    "sprintf-js": "^1.1.3"
   }
 }

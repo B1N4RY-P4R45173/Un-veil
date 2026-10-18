@@ -86,6 +86,56 @@ export default function Profile() {
           {me.warnings > 0 && <p className="warn-text">You have {me.warnings} warning{me.warnings > 1 ? 's' : ''}. Three warnings suspend an account.</p>}
         </div>
       )}
+      {!onboarding && <DeleteAccount />}
     </div>
+  );
+}
+
+function DeleteAccount() {
+  const { setMe } = useAuth();
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      await api.del('/me', { password });
+      setMe(null);
+      navigate('/', { replace: true });
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <div className="row-end danger-zone">
+        <button className="btn-link danger" onClick={() => setOpen(true)}>Delete my account</button>
+      </div>
+    );
+  }
+  return (
+    <form className="card stack danger-zone" onSubmit={submit}>
+      <h3>Delete your account</h3>
+      <p className="muted">
+        This removes your profile, messages, friends and blocks, and cannot be undone. People you already revealed to have seen your details.
+        Reports about you are kept in anonymous form.
+      </p>
+      <label className="field">
+        <span>Confirm with your password</span>
+        <input type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+      </label>
+      {error && <p className="error">{error}</p>}
+      <div className="row-end">
+        <button type="button" className="btn btn-ghost" onClick={() => setOpen(false)}>Cancel</button>
+        <button className="btn btn-danger" disabled={busy}>Delete account</button>
+      </div>
+    </form>
   );
 }

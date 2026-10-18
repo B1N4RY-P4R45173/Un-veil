@@ -61,7 +61,7 @@ export async function registerStudent(app, { email, password = 'password123', di
   const c = client(app);
   const cap = (await c.get('/api/auth/captcha')).body;
   const reg = await c.post('/api/auth/register').send({
-    email, password, displayName, captchaToken: cap.token, captchaAnswer: solveCaptcha(cap.question),
+    email, password, displayName, captchaToken: cap.token, captchaAnswer: solveCaptcha(cap.question), acceptTerms: true,
   });
   if (reg.status !== 201) throw new Error(`register failed: ${reg.status} ${JSON.stringify(reg.body)}`);
   const mail = [...outbox].reverse().find((m) => m.to === email);

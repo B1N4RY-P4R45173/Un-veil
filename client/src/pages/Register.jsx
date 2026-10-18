@@ -9,6 +9,7 @@ export default function Register() {
   const [form, setForm] = useState({ email: '', displayName: '', password: '' });
   const [captcha, setCaptcha] = useState(null);
   const [answer, setAnswer] = useState('');
+  const [accept, setAccept] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -25,7 +26,7 @@ export default function Register() {
     setBusy(true);
     setError('');
     try {
-      await api.post('/auth/register', { ...form, captchaToken: captcha.token, captchaAnswer: answer });
+      await api.post('/auth/register', { ...form, captchaToken: captcha.token, captchaAnswer: answer, acceptTerms: accept });
       navigate(`/verify?email=${encodeURIComponent(form.email.trim().toLowerCase())}`);
     } catch (err) {
       setError(err.message);
@@ -68,8 +69,12 @@ export default function Register() {
             <button type="button" className="btn btn-ghost btn-sm" onClick={loadCaptcha}>New question</button>
           </div>
         </div>
+        <label className="check">
+          <input type="checkbox" required checked={accept} onChange={(e) => setAccept(e.target.checked)} />
+          <span>I agree to the <Link to="/terms" target="_blank">Terms</Link> and <Link to="/privacy" target="_blank">Privacy Policy</Link>.</span>
+        </label>
         {error && <p className="error">{error}</p>}
-        <button className="btn btn-primary btn-block" disabled={busy || !captcha}>Create account</button>
+        <button className="btn btn-primary btn-block" disabled={busy || !captcha || !accept}>Create account</button>
         <p className="muted center">Already have an account? <Link to="/login">Log in</Link></p>
       </form>
     </div>

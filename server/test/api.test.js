@@ -2,6 +2,8 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { resetDb, startServer, shutdown, client, registerStudent, createAdmin, connect, once, emit, sleep } from './helpers.js';
 import { pool } from '../src/db.js';
+import { outbox } from '../src/services/mailer.js';
+import { runRetention } from '../src/services/retention.js';
 
 let srv;
 before(async () => {
@@ -19,7 +21,7 @@ test('registration requires a college email and a solved CAPTCHA', async () => {
   const bad = await c.post('/api/auth/register').send({ email: 'x@gmail.com', password: 'abc12345', displayName: 'X', captchaToken: cap.token, captchaAnswer: 1 });
   assert.equal(bad.status, 400);
   const cap2 = (await c.get('/api/auth/captcha')).body;
-  const wrongCaptcha = await c.post('/api/auth/register').send({ email: 'x@demo.edu', password: 'abc12345', displayName: 'Xy', captchaToken: cap2.token, captchaAnswer: 9999 });
+  const wrongCaptcha = await c.post('/api/auth/register').send({ email: 'x@demo.edu', password: 'abc12345', displayName: 'Xy', captchaToken: cap2.token, captchaAnswer: 9999, acceptTerms: true });
   assert.equal(wrongCaptcha.status, 400);
   assert.match(wrongCaptcha.body.error, /CAPTCHA/);
 });
@@ -207,4 +209,55 @@ test('reconnecting resumes the active chat', async () => {
   const hist = (await q.get('/api/sessions')).body;
   assert.equal(hist[0].endedAt, null);
   for (const s of [sp, sq2]) s.disconnect();
+});
+
+test('registration requires accepting the terms', async () => {
+  const c = client(srv.app);
+  const cap = (await c.get('/api/auth/captcha')).body;
+  const [, a, op, b] = cap.question.match(/(\d+) ([+×]) (\d+)/);
+  const answer = op === '+' ? Number(a) + Number(b) : Number(a) * Number(b);
+  const r = await c.post('/api/auth/register').send({ email: 'noterms@demo.edu', password: 'abc12345', displayName: 'No Terms', captchaToken: cap.token, captchaAnswer: answer });
+  assert.equal(r.status, 400);
+});
+
+test('password reset by emailed code', async () => {
+  await registerStudent(srv.app, { email: 'forgot@demo.edu' });
+  const c = client(srv.app);
+  const unknown = await c.post('/api/auth/forgot').send({ email: 'nobody@demo.edu' });
+  assert.equal(unknown.status, 200, 'does not reveal whether an account exists');
+  assert.equal((await c.post('/api/auth/forgot').send({ email: 'forgot@demo.edu' })).status, 200);
+  const mail = [...outbox].reverse().find((m) => m.to === 'forgot@demo.edu');
+  assert.match(mail.subject, /Reset/);
+  const code = mail.text.match(/\b(\d{6})\b/)[1];
+  const wrong = await c.post('/api/auth/reset').send({ email: 'forgot@demo.edu', code: code === '000000' ? '111111' : '000000', password: 'newpass123' });
+  assert.equal(wrong.status, 400);
+  assert.equal((await c.post('/api/auth/reset').send({ email: 'forgot@demo.edu', code, password: 'newpass123' })).status, 200);
+  assert.equal((await c.post('/api/auth/reset').send({ email: 'forgot@demo.edu', code, password: 'other12345' })).status, 400, 'codes are single use');
+  assert.equal((await c.post('/api/auth/login').send({ email: 'forgot@demo.edu', password: 'password123' })).status, 401);
+  assert.equal((await c.post('/api/auth/login').send({ email: 'forgot@demo.edu', password: 'newpass123' })).status, 200);
+});
+
+test('account deletion erases personal data and blocks login', async () => {
+  const c = await registerStudent(srv.app, { email: 'bye@demo.edu', displayName: 'Leaving Soon' });
+  assert.equal((await c.delete('/api/me').send({ password: 'wrong-pass1' })).status, 400);
+  assert.equal((await c.delete('/api/me').send({ password: 'password123' })).status, 200);
+  assert.equal((await c.get('/api/me')).status, 401);
+  const { rows } = await pool.query("SELECT status, email, display_name, bio FROM users WHERE email LIKE 'deleted+%'");
+  assert.equal(rows.length, 1);
+  assert.deepEqual([rows[0].status, rows[0].display_name, rows[0].bio], ['deleted', 'Deleted user', '']);
+  assert.equal((await client(srv.app).post('/api/auth/login').send({ email: 'bye@demo.edu', password: 'password123' })).status, 401);
+  await registerStudent(srv.app, { email: 'bye@demo.edu' }); // the email can sign up again
+});
+
+test('retention deletes old messages but keeps evidence for open reports', async () => {
+  const { rows: [s] } = await pool.query('SELECT id FROM chat_sessions LIMIT 1');
+  const { rows: [u] } = await pool.query("SELECT id FROM users WHERE role = 'student' LIMIT 1");
+  const { rows: [old] } = await pool.query(
+    "INSERT INTO messages (session_id, sender_id, body, created_at) VALUES ($1, $2, 'ancient', now() - interval '400 days') RETURNING id",
+    [s.id, u.id],
+  );
+  const openReport = (await pool.query("SELECT 1 FROM reports WHERE status = 'open' AND session_id = $1", [s.id])).rowCount > 0;
+  await runRetention();
+  const left = (await pool.query('SELECT 1 FROM messages WHERE id = $1', [old.id])).rowCount;
+  assert.equal(left, openReport ? 1 : 0);
 });

@@ -10,6 +10,8 @@ import Connect from './pages/Connect.jsx';
 import History from './pages/History.jsx';
 import Friends from './pages/Friends.jsx';
 import Admin from './pages/Admin.jsx';
+import Reset from './pages/Reset.jsx';
+import { Terms, Privacy } from './pages/Legal.jsx';
 
 function Guard({ role, children }) {
   const { me } = useAuth();
@@ -38,6 +40,9 @@ export default function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/verify" element={<Verify />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/reset" element={<Reset />} />
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/privacy" element={<Privacy />} />
         <Route path="/profile" element={<Guard role="student"><Profile /></Guard>} />
         <Route path="/connect" element={<Guard role="student"><Connect /></Guard>} />
         <Route path="/history" element={<Guard role="student"><History /></Guard>} />

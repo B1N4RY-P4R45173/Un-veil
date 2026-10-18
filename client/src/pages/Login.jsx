@@ -46,6 +46,7 @@ export default function Login() {
           </p>
         )}
         <button className="btn btn-primary btn-block" disabled={busy}>Log in</button>
+        <p className="muted center"><Link to={`/reset${email ? `?email=${encodeURIComponent(email)}` : ''}`}>Forgot your password?</Link></p>
         <p className="muted center">New here? <Link to="/register">Create an account</Link></p>
       </form>
     </div>

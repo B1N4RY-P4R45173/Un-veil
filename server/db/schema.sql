@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
   display_name    TEXT NOT NULL,
   college_id      INTEGER REFERENCES colleges(id),
   role            TEXT NOT NULL DEFAULT 'student' CHECK (role IN ('student', 'admin')),
-  status          TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'active', 'suspended', 'banned')),
+  status          TEXT NOT NULL DEFAULT 'pending',
   bio             TEXT NOT NULL DEFAULT '',
   interests       TEXT[] NOT NULL DEFAULT '{}',
   personality     TEXT[] NOT NULL DEFAULT '{}',
@@ -25,6 +25,12 @@ CREATE TABLE IF NOT EXISTS users (
   locked_until    TIMESTAMPTZ,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Columns and constraints added after the first release (safe to re-run).
+ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMPTZ;
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_status_check;
+ALTER TABLE users ADD CONSTRAINT users_status_check
+  CHECK (status IN ('pending', 'active', 'suspended', 'banned', 'deleted'));
 
 CREATE TABLE IF NOT EXISTS email_otps (
   user_id     UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,

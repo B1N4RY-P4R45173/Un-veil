@@ -11,10 +11,11 @@ Built from the Team 08 SRS (20CYS401 Secure Software Engineering) with the stack
 ### With Docker (simplest)
 
 ```bash
-docker compose up --build
+cp .env.example .env      # fill in POSTGRES_PASSWORD, JWT_SECRET, CAPTCHA_SECRET, ADMIN_EMAIL, ADMIN_PASSWORD, SMTP_*
+docker compose up --build -d
 ```
 
-Open http://localhost:4000. An admin account `admin@unveil.local` / `AdminPass123` is created on start (change it with `ADMIN_EMAIL` / `ADMIN_PASSWORD`). Without SMTP settings, sign-up codes are printed in the app's log: `docker compose logs -f app`.
+The app listens on 127.0.0.1:4000 for an HTTPS reverse proxy to forward to. The admin account comes from `ADMIN_EMAIL` / `ADMIN_PASSWORD`. To try it locally without an email server, add `NODE_ENV=development` to `.env`: sign-up codes then print in `docker compose logs -f app`, and the `@demo.edu` / `@sample.edu` test colleges are available.
 
 ### Without Docker
 
@@ -39,7 +40,7 @@ createdb unveil_test
 npm test
 ```
 
-22 tests: moderation (against the real model), tokenizer and matchmaking units, plus API/socket integration tests that drive real Postgres and Redis through registration, OTP, matching, chat, moderation, reveal, friends, reports, admin action, blocking and auto-suspension.
+26 tests: moderation (against the real model), tokenizer and matchmaking units, plus API/socket integration tests that drive real Postgres and Redis through registration, OTP, password reset, account deletion, matching, chat, moderation, reveal, friends, reports, admin action, blocking, auto-suspension and message retention.
 
 ## Colleges
 
@@ -118,6 +119,26 @@ The trust score (0 to 100, starts at 50) is private. It goes up for conversation
 | Identity hidden during chat | partner ids and profiles never sent before the mutual reveal; contact details masked |
 | Media restrictions before reveal | text and emoji only; payloads capped at 1000 characters / 16 KB |
 
+## Accounts and data
+
+- Sign-up requires agreeing to the Terms and Privacy Policy (`/terms`, `/privacy`); the time of agreement is stored. **Both pages are drafts** written to match what the code does; have them reviewed and set the contact address in `client/src/pages/Legal.jsx` before launch.
+- Forgotten passwords are reset with an emailed 6-digit code. The response never says whether an account exists.
+- Students can delete their account from Profile. Their profile, messages, friends and blocks are erased; the user row stays as an anonymous placeholder so reports about them still work.
+- An hourly job deletes chat messages older than `MESSAGE_RETENTION_DAYS` (default 30) unless an open report needs them, expired codes, and audit log entries older than a year.
+
+## Before launch
+
+Code-side items are done. These need someone with access to the real environment:
+
+1. **Domain and HTTPS.** Run behind a TLS-terminating proxy; cookies are `Secure` in production. Set `TRUST_PROXY` to the number of proxies in front.
+2. **Email.** A real SMTP provider with SPF, DKIM and DMARC set up for the sending domain, or OTP emails land in spam and nobody can sign up.
+3. **Secrets.** Fresh random `JWT_SECRET`, `CAPTCHA_SECRET`, `POSTGRES_PASSWORD` and a strong admin password. Compose refuses to start without them.
+4. **Colleges.** Only domains in `server/scripts/seed.js` can sign up. Demo domains are skipped in production.
+5. **Backups.** Scheduled `pg_dump` (the SRS asks for regular backups) and a tested restore.
+6. **Legal and permission.** Review the draft Terms/Privacy, decide on a minimum age, and get the college's go-ahead for using student emails.
+7. **Moderation.** The model is English-only and can flag rude-but-harmless messages. Have moderators watching the dashboard at launch and a contact for appeals.
+8. **Monitoring.** Uptime checks on `/api/health` and log collection for the app container.
+
 ## Not built yet
 
-From the SRS future scope: voice and video chat, group chat, multi-language support, push notifications outside the open tab, and university SSO. Socket.IO runs as a single instance; scaling to several instances needs the Socket.IO Redis adapter.
+From the SRS future scope: voice and video chat, group chat, multi-language support, push notifications outside the open tab, and university SSO. Socket.IO runs as a single instance; scaling to several instances needs the Socket.IO Redis adapter and a Redis-backed rate limit store. Admin accounts have no second factor yet.

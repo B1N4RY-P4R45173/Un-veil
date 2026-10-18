@@ -1,10 +1,15 @@
-# One-command local stack: docker compose up --build, then open http://localhost:4000
+# Production-style stack. Copy .env.example to .env, fill in the required values, then:
+#   docker compose up --build -d
+# The app listens on :4000; put an HTTPS reverse proxy (Caddy, nginx, a load balancer) in front.
+# To try it locally without an email server, set NODE_ENV=development in .env: sign-up codes
+# then print to `docker compose logs -f app` instead of being emailed.
 services:
   db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: unveil
-      POSTGRES_PASSWORD: unveil
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: unveil
     volumes: [pgdata:/var/lib/postgresql/data]
     healthcheck:
@@ -13,22 +18,31 @@ services:
       retries: 20
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
   app:
     build: .
     platform: linux/amd64   # TensorFlow for Node ships x86-64 Linux binaries
-    ports: ["4000:4000"]
+    restart: unless-stopped
+    ports: ["127.0.0.1:4000:4000"]   # reach it through the HTTPS proxy, not directly
     depends_on:
       db: { condition: service_healthy }
       redis: { condition: service_started }
     environment:
-      NODE_ENV: production
-      DATABASE_URL: postgres://unveil:unveil@db:5432/unveil
+      NODE_ENV: ${NODE_ENV:-production}
+      DATABASE_URL: postgres://unveil:${POSTGRES_PASSWORD}@db:5432/unveil
       REDIS_URL: redis://redis:6379
-      JWT_SECRET: ${JWT_SECRET:-change-me-local-only-jwt-secret}
-      CAPTCHA_SECRET: ${CAPTCHA_SECRET:-change-me-local-only-captcha-secret}
-      SAFE_PERIOD_SECONDS: ${SAFE_PERIOD_SECONDS:-60}
-      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@unveil.local}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-AdminPass123}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      CAPTCHA_SECRET: ${CAPTCHA_SECRET:?set CAPTCHA_SECRET in .env}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:?set ADMIN_EMAIL in .env}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD in .env}
+      SAFE_PERIOD_SECONDS: ${SAFE_PERIOD_SECONDS:-300}
+      MESSAGE_RETENTION_DAYS: ${MESSAGE_RETENTION_DAYS:-30}
+      TRUST_PROXY: ${TRUST_PROXY:-1}
       SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-}
 volumes:
   pgdata:

@@ -10,7 +10,18 @@ function hashCode(userId, code) {
   return crypto.createHmac('sha256', config.jwtSecret).update(`${userId}:${code}`).digest('hex');
 }
 
-export async function issueOtp(user, { force = false } = {}) {
+const MAIL = {
+  verify: {
+    subject: 'Your Unveil verification code',
+    text: (code, mins) => `Your Unveil verification code is ${code}. It expires in ${mins} minutes. If you did not sign up, ignore this email.`,
+  },
+  reset: {
+    subject: 'Reset your Unveil password',
+    text: (code, mins) => `Your Unveil password reset code is ${code}. It expires in ${mins} minutes. If you did not ask to reset your password, ignore this email; your password has not changed.`,
+  },
+};
+
+export async function issueOtp(user, { force = false, purpose = 'verify' } = {}) {
   const existing = await one('SELECT sent_at FROM email_otps WHERE user_id = $1', [user.id]);
   if (!force && existing && Date.now() - new Date(existing.sent_at).getTime() < RESEND_COOLDOWN_MS) {
     return { ok: false, error: 'Please wait a minute before requesting another code.' };
@@ -24,8 +35,8 @@ export async function issueOtp(user, { force = false } = {}) {
   );
   await sendMail({
     to: user.email,
-    subject: 'Your Unveil verification code',
-    text: `Your Unveil verification code is ${code}. It expires in ${config.otpTtlSeconds / 60} minutes. If you did not sign up, ignore this email.`,
+    subject: MAIL[purpose].subject,
+    text: MAIL[purpose].text(code, config.otpTtlSeconds / 60),
   });
   return { ok: true };
 }

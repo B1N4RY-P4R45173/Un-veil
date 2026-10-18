@@ -87,6 +87,9 @@ export default function Layout({ children }) {
         </div>
       </header>
       <main className="main">{children}</main>
+      <footer className="footer muted">
+        <Link to="/terms">Terms</Link> · <Link to="/privacy">Privacy</Link>
+      </footer>
     </div>
   );
 }
