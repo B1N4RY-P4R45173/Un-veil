@@ -1,0 +1,34 @@
+# One-command local stack: docker compose up --build, then open http://localhost:4000
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: unveil
+      POSTGRES_PASSWORD: unveil
+      POSTGRES_DB: unveil
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U unveil"]
+      interval: 3s
+      retries: 20
+  redis:
+    image: redis:7-alpine
+  app:
+    build: .
+    platform: linux/amd64   # TensorFlow for Node ships x86-64 Linux binaries
+    ports: ["4000:4000"]
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_started }
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://unveil:unveil@db:5432/unveil
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-change-me-local-only-jwt-secret}
+      CAPTCHA_SECRET: ${CAPTCHA_SECRET:-change-me-local-only-captcha-secret}
+      SAFE_PERIOD_SECONDS: ${SAFE_PERIOD_SECONDS:-60}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@unveil.local}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-AdminPass123}
+      SMTP_HOST: ${SMTP_HOST:-}
+volumes:
+  pgdata:
