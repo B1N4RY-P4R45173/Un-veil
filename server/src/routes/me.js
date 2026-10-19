@@ -20,6 +20,8 @@ router.get('/meta', wrap(async (req, res) => {
     personality: PERSONALITY,
     reportReasons: REPORT_REASONS,
     safePeriodSeconds: config.safePeriodSeconds,
+    microsoftLogin: Boolean(config.microsoft),
+    passwordSignup: config.passwordSignup,
     messageRetentionDays: config.messageRetentionDays,
     colleges: rows.map((r) => ({ name: r.name, domain: r.email_domain })),
   });
@@ -45,6 +47,9 @@ export function meView(u) {
     personality: u.personality,
     standing: standing(u.trust_score),
     warnings: u.warnings,
+    // Students who sign in with Microsoft get their name from the college directory.
+    nameLocked: Boolean(u.ms_oid),
+    hasPassword: u.password_hash ? u.password_hash !== '!' : true,
     profileComplete: u.role === 'admin' || (u.interests.length > 0 && u.personality.length > 0),
   };
 }
@@ -58,6 +63,9 @@ router.patch('/me', requireAuth, wrap(async (req, res) => {
     interests: z.array(z.enum(INTERESTS)).max(8).optional(),
     personality: z.array(z.enum(PERSONALITY)).max(5).optional(),
   }).strict(), req.body);
+  if (body.displayName !== undefined && req.user.ms_oid && body.displayName !== req.user.display_name) {
+    throw new HttpError(400, 'Your name comes from your Microsoft account and cannot be changed here.');
+  }
   await query(
     `UPDATE users SET
        display_name = COALESCE($2, display_name),
@@ -80,9 +88,14 @@ router.patch('/me', requireAuth, wrap(async (req, res) => {
 // anonymous placeholder, so reports against this person (and their evidence) survive:
 // deleting an account must not be a way to escape moderation.
 router.delete('/me', requireAuth, requireRole('student'), wrap(async (req, res) => {
-  const body = parse(z.object({ password: z.string().min(1).max(128) }), req.body);
+  const body = parse(z.object({ password: z.string().max(128).optional(), confirm: z.string().max(20).optional() }), req.body);
   const { password_hash: hash } = await one('SELECT password_hash FROM users WHERE id = $1', [req.user.id]);
-  if (!(await bcrypt.compare(body.password, hash))) throw new HttpError(400, 'That password is not right.');
+  if (hash === '!') {
+    // Microsoft-only accounts have no Unveil password; they confirm by typing DELETE instead.
+    if (body.confirm !== 'DELETE') throw new HttpError(400, 'Type DELETE to confirm.');
+  } else if (!body.password || !(await bcrypt.compare(body.password, hash))) {
+    throw new HttpError(400, 'That password is not right.');
+  }
 
   const id = req.user.id;
   await leaveQueue(id);
@@ -97,7 +110,7 @@ router.delete('/me', requireAuth, requireRole('student'), wrap(async (req, res) 
   await query('DELETE FROM email_otps WHERE user_id = $1', [id]);
   await query(
     `UPDATE users SET status = 'deleted', email = 'deleted+' || id || '@deleted.invalid', display_name = 'Deleted user',
-       bio = '', interests = '{}', personality = '{}', password_hash = '!'
+       bio = '', interests = '{}', personality = '{}', password_hash = '!', ms_oid = NULL
      WHERE id = $1`,
     [id],
   );

@@ -41,4 +41,18 @@ export const config = {
       }
     : null,
   mailFrom: env.MAIL_FROM || 'Unveil <no-reply@unveil.local>',
+  // Public address of the site, used for the Microsoft sign-in redirect.
+  publicUrl: (env.PUBLIC_URL || `http://localhost:${env.PORT || 4000}`).replace(/\/$/, ''),
+  // "Sign in with Microsoft" is on when a client ID and secret are set (Entra app registration).
+  microsoft: env.MICROSOFT_CLIENT_ID && env.MICROSOFT_CLIENT_SECRET
+    ? {
+        clientId: env.MICROSOFT_CLIENT_ID,
+        clientSecret: env.MICROSOFT_CLIENT_SECRET,
+        tenant: env.MICROSOFT_TENANT || 'organizations',
+        // Optional: only accept accounts from these directory (tenant) IDs, e.g. your college's.
+        allowedTenants: (env.MICROSOFT_ALLOWED_TENANTS || '').split(',').map((t) => t.trim()).filter(Boolean),
+      }
+    : null,
+  // Set to false to turn off email + password sign-up once Microsoft sign-in works for everyone.
+  passwordSignup: env.PASSWORD_SIGNUP !== 'false',
 };

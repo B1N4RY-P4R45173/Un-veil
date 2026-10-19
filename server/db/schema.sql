@@ -30,6 +30,9 @@ CREATE TABLE IF NOT EXISTS users (
 ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMPTZ;
 -- Admin correction to the shown report count (shown = real reports + offset, never below 0).
 ALTER TABLE users ADD COLUMN IF NOT EXISTS report_offset INTEGER NOT NULL DEFAULT 0;
+-- Microsoft account object ID, set for students who sign in with Microsoft (their name is then locked).
+ALTER TABLE users ADD COLUMN IF NOT EXISTS ms_oid TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS users_ms_oid_idx ON users (ms_oid) WHERE ms_oid IS NOT NULL;
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_status_check;
 ALTER TABLE users ADD CONSTRAINT users_status_check
   CHECK (status IN ('pending', 'active', 'suspended', 'banned', 'deleted'));

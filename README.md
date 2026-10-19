@@ -121,6 +121,8 @@ The trust score (0 to 100, starts at 50) is private. It goes up for conversation
 
 ## Accounts and data
 
+- **Sign in with Microsoft.** Students can sign up and log in with their college Microsoft 365 account: no Unveil password and no email code. Their name comes from the college directory and cannot be edited; an existing email account with the same address is linked on first Microsoft sign-in. Microsoft does not share gender for school accounts. To turn it on, register an app in Microsoft Entra ID (multitenant, Web redirect URI `<PUBLIC_URL>/api/auth/microsoft/callback`) and set `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` and `PUBLIC_URL`. `MICROSOFT_ALLOWED_TENANTS` limits it to your college's directory. If the college blocks user consent, an IT admin has to approve the app once.
+
 - Sign-up requires agreeing to the Terms and Privacy Policy (`/terms`, `/privacy`); the time of agreement is stored. **Both pages are drafts** written to match what the code does; have them reviewed and set the contact address in `client/src/pages/Legal.jsx` before launch.
 - Forgotten passwords are reset with an emailed 6-digit code. The response never says whether an account exists.
 - Students can delete their account from Profile. Their profile, messages, friends and blocks are erased; the user row stays as an anonymous placeholder so reports about them still work.

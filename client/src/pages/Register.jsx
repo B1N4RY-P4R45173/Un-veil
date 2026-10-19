@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api.js';
 import { useAuth } from '../auth.jsx';
+import MicrosoftButton from '../components/MicrosoftButton.jsx';
 
 export default function Register() {
   const { meta } = useAuth();
@@ -40,6 +41,17 @@ export default function Register() {
     <div className="auth-page">
       <form className="card auth-card" onSubmit={submit}>
         <h1>Join Unveil</h1>
+        {meta?.microsoftLogin && (
+          <>
+            <p className="muted">Sign up with your college Microsoft account. No password or email code needed.</p>
+            <MicrosoftButton label="Sign up with Microsoft" />
+            <p className="muted small">By continuing you agree to the <Link to="/terms" target="_blank">Terms</Link> and <Link to="/privacy" target="_blank">Privacy Policy</Link>.</p>
+            {meta?.passwordSignup !== false && <div className="or">or sign up with email</div>}
+          </>
+        )}
+        {meta?.passwordSignup === false ? (
+          <p className="muted center">Already have an account? <Link to="/login">Log in</Link></p>
+        ) : (<>
         <p className="muted">Use your college email. We'll send a code to confirm it's you.</p>
         <label className="field">
           <span>College email</span>
@@ -76,6 +88,7 @@ export default function Register() {
         {error && <p className="error">{error}</p>}
         <button className="btn btn-primary btn-block" disabled={busy || !captcha || !accept}>Create account</button>
         <p className="muted center">Already have an account? <Link to="/login">Log in</Link></p>
+        </>)}
       </form>
     </div>
   );

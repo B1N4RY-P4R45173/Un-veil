@@ -49,6 +49,7 @@ export function Privacy() {
       <h2>What we store</h2>
       <ul>
         <li>Your college email, name, a hashed password, bio, interests and personality tags.</li>
+        <li>If you sign in with Microsoft: your name, college email and Microsoft account ID from your college's directory. We do not receive your Microsoft password.</li>
         <li>Your chats, reports, blocks and friends, plus a private trust score based on reports and moderation.</li>
         <li>Security logs (sign-ins, moderation actions) with IP addresses.</li>
       </ul>

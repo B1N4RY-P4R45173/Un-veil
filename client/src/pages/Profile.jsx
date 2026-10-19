@@ -34,7 +34,8 @@ export default function Profile() {
     setBusy(true);
     setError('');
     try {
-      const updated = await api.patch('/me', form);
+      const { displayName, ...rest } = form;
+      const updated = await api.patch('/me', me.nameLocked ? rest : { displayName, ...rest });
       setMe(updated);
       toast('Profile saved.');
       if (onboarding) navigate('/connect');
@@ -55,7 +56,11 @@ export default function Profile() {
         <div className="grid-2">
           <label className="field">
             <span>Name</span>
-            <input value={form.displayName} minLength={2} maxLength={40} onChange={(e) => setForm({ ...form, displayName: e.target.value })} />
+            {me.nameLocked ? (
+              <div className="static" title="From your Microsoft account">{me.displayName}</div>
+            ) : (
+              <input value={form.displayName} minLength={2} maxLength={40} onChange={(e) => setForm({ ...form, displayName: e.target.value })} />
+            )}
           </label>
           <div className="field">
             <span>College</span>
@@ -92,7 +97,7 @@ export default function Profile() {
 }
 
 function DeleteAccount() {
-  const { setMe } = useAuth();
+  const { me, setMe } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState('');
@@ -104,7 +109,7 @@ function DeleteAccount() {
     setBusy(true);
     setError('');
     try {
-      await api.del('/me', { password });
+      await api.del('/me', me.hasPassword ? { password } : { confirm: password });
       setMe(null);
       navigate('/', { replace: true });
     } catch (err) {
@@ -127,10 +132,17 @@ function DeleteAccount() {
         This removes your profile, messages, friends and blocks, and cannot be undone. People you already revealed to have seen your details.
         Reports about you are kept in anonymous form.
       </p>
-      <label className="field">
-        <span>Confirm with your password</span>
-        <input type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
-      </label>
+      {me.hasPassword ? (
+        <label className="field">
+          <span>Confirm with your password</span>
+          <input type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+        </label>
+      ) : (
+        <label className="field">
+          <span>Type DELETE to confirm</span>
+          <input required autoComplete="off" value={password} onChange={(e) => setPassword(e.target.value)} />
+        </label>
+      )}
       {error && <p className="error">{error}</p>}
       <div className="row-end">
         <button type="button" className="btn btn-ghost" onClick={() => setOpen(false)}>Cancel</button>

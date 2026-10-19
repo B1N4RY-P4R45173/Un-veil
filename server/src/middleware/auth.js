@@ -34,7 +34,7 @@ export async function userFromToken(token) {
   }
   const user = await one(
     `SELECT u.id, u.email, u.display_name, u.role, u.status, u.college_id, u.bio, u.interests, u.personality,
-            u.trust_score, u.warnings, c.name AS college_name
+            u.trust_score, u.warnings, u.ms_oid, u.password_hash, c.name AS college_name
      FROM users u LEFT JOIN colleges c ON c.id = u.college_id WHERE u.id = $1`,
     [payload.sub],
   );

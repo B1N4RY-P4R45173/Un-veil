@@ -11,6 +11,7 @@ import { audit } from '../services/audit.js';
 import { issueToken, clearToken, requireAuth } from '../middleware/auth.js';
 import { endActiveSessionFor } from '../services/chat.js';
 import { leaveQueue } from '../services/matchmaking.js';
+import { microsoftEnabled, startLogin, finishLogin, userFromMicrosoft } from '../services/microsoft.js';
 
 const router = Router();
 
@@ -37,6 +38,7 @@ const LOCK_MINUTES = 15;
 router.get('/captcha', (req, res) => res.json(createCaptcha()));
 
 router.post('/register', limiter(10, 15), wrap(async (req, res) => {
+  if (!config.passwordSignup) throw new HttpError(403, 'Sign up with your college Microsoft account instead.');
   const body = parse(z.object({
     email,
     password,
@@ -157,6 +159,38 @@ router.post('/login', limiter(20, 15), wrap(async (req, res) => {
   await audit('auth.login', { actorId: user.id, ip });
   issueToken(res, user);
   res.json({ ok: true });
+}));
+
+// Sign in with Microsoft. Errors come back to the login page as ?error=<code>.
+router.get('/microsoft', limiter(30, 15), wrap(async (req, res) => {
+  if (!microsoftEnabled()) throw new HttpError(404, 'Microsoft sign-in is not set up.');
+  res.redirect(await startLogin());
+}));
+
+router.get('/microsoft/callback', limiter(30, 15), wrap(async (req, res) => {
+  const fail = (code) => res.redirect(`/login?error=${code}`);
+  if (!microsoftEnabled()) return fail('ms_off');
+  const ip = clientIp(req);
+  if (req.query.error) {
+    // e.g. the student cancelled, or the college requires admin approval for the app.
+    await audit('auth.microsoft_failed', { ip, meta: { error: String(req.query.error).slice(0, 80) } });
+    return fail(String(req.query.error).includes('consent') ? 'ms_consent' : 'ms_cancelled');
+  }
+  let claims;
+  try {
+    claims = await finishLogin({ code: String(req.query.code || ''), state: String(req.query.state || '') });
+  } catch (err) {
+    await audit('auth.microsoft_failed', { ip, meta: { error: err.message.slice(0, 120) } });
+    return fail('ms_failed');
+  }
+  const result = await userFromMicrosoft(claims);
+  if (result.error) {
+    await audit('auth.microsoft_refused', { ip, meta: { reason: result.error, tid: claims.tid } });
+    return fail(result.error);
+  }
+  await audit(result.created ? 'auth.register_microsoft' : 'auth.login_microsoft', { actorId: result.user.id, ip });
+  issueToken(res, result.user);
+  res.redirect('/');
 }));
 
 router.post('/logout', requireAuth, wrap(async (req, res) => {
