@@ -55,7 +55,7 @@ export default function Reset() {
       ) : (
         <form className="card auth-card" onSubmit={reset}>
           <h1>Choose a new password</h1>
-          <p className="muted">If {email} has an Unveil account, a 6-digit code is on its way.</p>
+          <p className="muted">If {email} has an Unveil account, a 6-digit code is on its way. Check your junk or spam folder too.</p>
           <label className="field">
             <span>Code</span>
             <input inputMode="numeric" autoComplete="one-time-code" required pattern="\d{6}" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.trim())} />

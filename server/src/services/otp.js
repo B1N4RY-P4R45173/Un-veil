@@ -10,14 +10,29 @@ function hashCode(userId, code) {
   return crypto.createHmac('sha256', config.jwtSecret).update(`${userId}:${code}`).digest('hex');
 }
 
+// A plain HTML version alongside the text one: text-only mail scores worse with spam filters.
+// No links or images, which new sending domains get penalised for.
+function codeHtml(intro, code, mins, footer) {
+  return `<!doctype html><html><body style="margin:0;padding:24px;background:#f7f4ef;font-family:Arial,Helvetica,sans-serif;color:#1f1b2e">
+<div style="max-width:440px;margin:0 auto;background:#ffffff;border-radius:12px;padding:28px">
+<p style="margin:0 0 4px;font-size:18px;font-weight:bold">Unveil</p>
+<p style="margin:0 0 20px;font-size:15px">${intro}</p>
+<p style="margin:0 0 20px;font-size:32px;letter-spacing:6px;font-weight:bold">${code}</p>
+<p style="margin:0 0 8px;font-size:14px;color:#5b5670">This code expires in ${mins} minutes.</p>
+<p style="margin:0;font-size:13px;color:#5b5670">${footer}</p>
+</div></body></html>`;
+}
+
 const MAIL = {
   verify: {
     subject: 'Your Unveil verification code',
     text: (code, mins) => `Your Unveil verification code is ${code}. It expires in ${mins} minutes. If you did not sign up, ignore this email.`,
+    html: (code, mins) => codeHtml('Here is your code to finish signing up:', code, mins, 'If you did not sign up for Unveil, you can ignore this email.'),
   },
   reset: {
     subject: 'Reset your Unveil password',
     text: (code, mins) => `Your Unveil password reset code is ${code}. It expires in ${mins} minutes. If you did not ask to reset your password, ignore this email; your password has not changed.`,
+    html: (code, mins) => codeHtml('Here is your code to reset your password:', code, mins, 'If you did not ask to reset your password, ignore this email. Your password has not changed.'),
   },
 };
 
@@ -37,6 +52,7 @@ export async function issueOtp(user, { force = false, purpose = 'verify' } = {})
     to: user.email,
     subject: MAIL[purpose].subject,
     text: MAIL[purpose].text(code, config.otpTtlSeconds / 60),
+    html: MAIL[purpose].html(code, config.otpTtlSeconds / 60),
   });
   return { ok: true };
 }

@@ -42,7 +42,7 @@ export default function Verify() {
     <div className="auth-page">
       <form className="card auth-card" onSubmit={submit}>
         <h1>Check your inbox</h1>
-        <p className="muted">We sent a 6-digit code to your college email. It expires in 10 minutes.</p>
+        <p className="muted">We sent a 6-digit code to your college email. It expires in 10 minutes. If you don't see it, check your junk or spam folder.</p>
         <label className="field">
           <span>College email</span>
           <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
