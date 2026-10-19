@@ -28,6 +28,8 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- Columns and constraints added after the first release (safe to re-run).
 ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMPTZ;
+-- Admin correction to the shown report count (shown = real reports + offset, never below 0).
+ALTER TABLE users ADD COLUMN IF NOT EXISTS report_offset INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_status_check;
 ALTER TABLE users ADD CONSTRAINT users_status_check
   CHECK (status IN ('pending', 'active', 'suspended', 'banned', 'deleted'));

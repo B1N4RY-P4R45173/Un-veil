@@ -155,6 +155,7 @@ function Users() {
     const t = setTimeout(load, 250);
     return () => clearTimeout(t);
   }, [load]);
+  const [editing, setEditing] = useState(null);
   const setStatus = async (id, status) => {
     try {
       await api.post(`/admin/users/${id}/status`, { status });
@@ -182,6 +183,7 @@ function Users() {
                 <td>{u.warnings}</td>
                 <td>{u.reports}</td>
                 <td className="nowrap">
+                  {u.role !== 'admin' && <button className="btn btn-link btn-sm" onClick={() => setEditing(u)}>Edit</button>}
                   {u.role !== 'admin' && (u.status === 'active' ? (
                     <>
                       <button className="btn btn-link btn-sm" onClick={() => setStatus(u.id, 'suspended')}>Suspend</button>
@@ -196,6 +198,49 @@ function Users() {
           </tbody>
         </table>
       </div>
+      {editing && <EditUser user={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
+    </div>
+  );
+}
+
+function EditUser({ user, onClose, onSaved }) {
+  const toast = useToast();
+  const [form, setForm] = useState({ trustScore: user.trust_score, warnings: user.warnings, reports: user.reports });
+  const [busy, setBusy] = useState(false);
+  const field = (key, label, max, hint) => (
+    <label className="field">
+      <span>{label}</span>
+      <input type="number" min={0} max={max} required value={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} />
+      {hint && <small className="muted">{hint}</small>}
+    </label>
+  );
+  const save = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await api.patch(`/admin/users/${user.id}`, {
+        trustScore: Number(form.trustScore), warnings: Number(form.warnings), reports: Number(form.reports),
+      });
+      toast(`Updated ${user.display_name}.`);
+      onSaved();
+    } catch (err) {
+      toast(err.message, 'warn');
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <form className="modal card" onClick={(e) => e.stopPropagation()} onSubmit={save} aria-label="Edit user">
+        <h2>Edit {user.display_name}</h2>
+        <p className="muted">{user.email}</p>
+        {field('trustScore', 'Trust score', 100, '0 to 100. Below 25, they are matched only with others in limited standing.')}
+        {field('warnings', 'Warnings', 10, 'Setting this by hand does not suspend anyone; use Suspend for that.')}
+        {field('reports', 'Reports', 1000, 'Changes the count shown here. The original reports stay in the Reports tab.')}
+        <div className="row-end">
+          <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" disabled={busy}>Save</button>
+        </div>
+      </form>
     </div>
   );
 }

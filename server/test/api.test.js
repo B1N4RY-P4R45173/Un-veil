@@ -261,3 +261,20 @@ test('retention deletes old messages but keeps evidence for open reports', async
   const left = (await pool.query('SELECT 1 FROM messages WHERE id = $1', [old.id])).rowCount;
   assert.equal(left, openReport ? 1 : 0);
 });
+
+test('admins can correct trust score, warnings and report count', async () => {
+  await registerStudent(srv.app, { email: 'edit-me@demo.edu' });
+  const admin = await createAdmin(srv.app, 'editor@unveil.test');
+  const { rows: [u] } = await pool.query("SELECT id FROM users WHERE email = 'edit-me@demo.edu'");
+  assert.equal((await admin.patch(`/api/admin/users/${u.id}`).send({ trustScore: 101 })).status, 400);
+  const r = await admin.patch(`/api/admin/users/${u.id}`).send({ trustScore: 80, warnings: 1, reports: 4 });
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.body, { trustScore: 80, warnings: 1, reports: 4 });
+  const listed = (await admin.get('/api/admin/users?q=edit-me')).body[0];
+  assert.deepEqual([listed.trust_score, listed.warnings, listed.reports], [80, 1, 4]);
+  assert.equal((await admin.patch(`/api/admin/users/${u.id}`).send({ reports: 0 })).body.reports, 0);
+  const { rows: [log] } = await pool.query("SELECT meta FROM audit_log WHERE action = 'admin.user_edited' ORDER BY id DESC LIMIT 1");
+  assert.equal(log.meta.after.reports, 0);
+  const student = await registerStudent(srv.app, { email: 'not-admin@demo.edu' });
+  assert.equal((await student.patch(`/api/admin/users/${u.id}`).send({ trustScore: 1 })).status, 403);
+});

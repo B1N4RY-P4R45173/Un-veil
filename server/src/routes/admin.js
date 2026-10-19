@@ -109,7 +109,7 @@ router.get('/users', wrap(async (req, res) => {
   const q = parse(z.string().trim().max(100).default(''), req.query.q);
   const { rows } = await query(
     `SELECT u.id, u.email, u.display_name, u.role, u.status, u.trust_score, u.warnings, u.created_at, c.name AS college,
-       (SELECT count(*) FROM reports r WHERE r.reported_id = u.id)::int AS reports
+       GREATEST(0, (SELECT count(*) FROM reports r WHERE r.reported_id = u.id)::int + u.report_offset) AS reports
      FROM users u LEFT JOIN colleges c ON c.id = u.college_id
      WHERE $1 = '' OR u.email ILIKE '%' || $1 || '%' OR u.display_name ILIKE '%' || $1 || '%'
      ORDER BY u.created_at DESC LIMIT 100`,
@@ -129,6 +129,34 @@ router.post('/users/:id/status', wrap(async (req, res) => {
   if (body.status === 'active') await query('UPDATE users SET warnings = 0 WHERE id = $1', [id]);
   await audit('admin.user_status', { actorId: req.user.id, ip: clientIp(req), meta: { userId: id, status: body.status } });
   res.json({ ok: true });
+}));
+
+// Manual corrections by a moderator. Each field is optional; every change is audited with
+// its old and new value. The report count is stored as an offset so real reports stay intact.
+router.patch('/users/:id', wrap(async (req, res) => {
+  const id = parse(uuid, req.params.id);
+  const body = parse(z.object({
+    trustScore: z.number().int().min(0).max(100).optional(),
+    warnings: z.number().int().min(0).max(10).optional(),
+    reports: z.number().int().min(0).max(1000).optional(),
+  }), req.body);
+  const user = await one(
+    `SELECT u.id, u.role, u.trust_score, u.warnings, u.report_offset,
+       (SELECT count(*) FROM reports r WHERE r.reported_id = u.id)::int AS real_reports
+     FROM users u WHERE u.id = $1`,
+    [id],
+  );
+  if (!user) throw new HttpError(404, 'User not found.');
+  if (user.role === 'admin') throw new HttpError(400, 'Administrator accounts have no trust score or reports to edit.');
+
+  const before = { trustScore: user.trust_score, warnings: user.warnings, reports: Math.max(0, user.real_reports + user.report_offset) };
+  const after = { ...before, ...body };
+  await query(
+    'UPDATE users SET trust_score = $2, warnings = $3, report_offset = $4 WHERE id = $1',
+    [id, after.trustScore, after.warnings, after.reports - user.real_reports],
+  );
+  await audit('admin.user_edited', { actorId: req.user.id, ip: clientIp(req), meta: { userId: id, before, after } });
+  res.json(after);
 }));
 
 router.delete('/messages/:id', wrap(async (req, res) => {
